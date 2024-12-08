@@ -93,6 +93,7 @@ vim.g.maplocalleader = ' '
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
+vim.lsp.set_log_level 'debug'
 -- [[ Setting options ]]
 -- See `:help vim.opt`
 -- NOTE: You can change these options as you wish!
@@ -624,11 +625,12 @@ require('lazy').setup({
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         pyright = {},
+        ocamllsp = {},
         ts_ls = {},
+        java_language_server = {},
+        hls = {},
+        r_language_server = {},
         lua_ls = {
-          -- cmd = {...},
-          -- filetypes = { ...},
-          -- capabilities = {},
           settings = {
             Lua = {
               completion = {
@@ -640,7 +642,6 @@ require('lazy').setup({
           },
         },
       }
-
       -- Ensure the servers and tools above are installed
       --  To check the current status of installed tools and/or manually install
       --  other tools, you can run
@@ -651,7 +652,10 @@ require('lazy').setup({
 
       -- You can add other tools here that you want Mason to install
       -- for you, so that they are available from within Neovim.
+
       local ensure_installed = vim.tbl_keys(servers or {})
+
+      require('mason-tool-installer').setup { ensure_installed = filtered_ensure_installed }
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
       })
