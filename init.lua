@@ -1,6 +1,9 @@
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+vim.keymap.set('v', '<A-k>', ":m '<-2<CR>gv=gv", { noremap = true, silent = true })
+vim.keymap.set('v', '<A-j>', ":m '>+1<CR>gv=gv", { noremap = true, silent = true })
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
@@ -366,7 +369,7 @@ require('lazy').setup({
       })
       -- Change diagnostic symbols in the sign column (gutter)
       -- if vim.g.have_nerd_font then
-      --   local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
+      --   local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
       --   local diagnostic_signs = {}
       --   for type, icon in pairs(signs) do
       --     diagnostic_signs[vim.diagnostic.severity[type]] = icon
@@ -390,7 +393,18 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        pyright = {},
+        pyright = {
+          settings = {
+            python = {
+              analysis = {
+                typeCheckingMode = 'basic', -- "off" | "basic" | "standard" | "strict"
+                autoImportCompletions = true,
+                autoSearchPaths = true,
+                useLibraryCodeForTypes = true,
+              },
+            },
+          },
+        },
         ocamllsp = {},
         clangd = {
           capabilities = cmp_nvim_lsp.default_capabilities(),
@@ -420,6 +434,27 @@ require('lazy').setup({
         },
         jdtls = {},
       }
+      local mason_tools = {
+        -- LSP servers (package IDs)
+        'lua-language-server',
+        'pyright',
+        'clangd',
+        'haskell-language-server',
+        'r-languageserver',
+        'ocaml-lsp',
+        'jdtls',
+
+        -- Formatters / linters / extras you use in Conform
+        'stylua',
+        'black',
+        'isort',
+        'clang-format',
+        'fourmolu', -- or "ormolu"
+        'prettierd', -- optional
+        'prettier', -- optional fallback
+        'google-java-format',
+        'ocamlformat',
+      }
       -- Ensure the servers and tools above are installed
       --  To check the current status of installed tools and/or manually install
       --  other tools, you can run
@@ -429,13 +464,14 @@ require('lazy').setup({
       require('mason').setup()
       -- You can add other tools here that you want Mason to install
       -- for you, so that they are available from within Neovim.
-      local ensure_installed = vim.tbl_keys(servers)
+      local ensure_servers = vim.tbl_keys(servers)
       require('mason-tool-installer').setup {
-        ensure_installed = ensure_installed,
+        ensure_installed = vim.list_extend(vim.deepcopy(ensure_servers), mason_tools),
+        auto_update = false,
+        run_on_start = true,
       }
-      require('mason-tool-installer').setup { ensure_installed = ensure_installed }
       require('mason-lspconfig').setup {
-        ensure_installed = ensure_installed,
+        ensure_installed = ensure_servers,
         automatic_installation = true,
         handlers = {
           function(server_name)
@@ -604,21 +640,112 @@ require('lazy').setup({
     end,
   },
 
-  { -- You can easily change to a different colorscheme.
-    -- Change the name of the colorscheme plugin below, and then
-    -- change the command in the config to whatever the name of that colorscheme is.
-    --
-    -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
+  {
     'folke/tokyonight.nvim',
-    priority = 1000, -- Make sure to load this before all the other start plugins.
-    init = function()
-      -- Load the colorscheme here.
-      -- Like many other themes, this one has different styles, and you could load
-      -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+    priority = 1000,
+    config = function()
+      require('tokyonight').setup {
+        style = 'night',
+        light_style = 'day', -- The theme is used when the background is set to light
+        transparent = false, -- Enable this to disable setting the background color
+        terminal_colors = true, -- Configure the colors used when opening a `:terminal` in Neovim
+        styles = {
+          comments = { italic = true },
+          keywords = { italic = true },
+          functions = {},
+          variables = {},
+          sidebars = 'dark', -- style for sidebars, see below
+          floats = 'dark', -- style for floating windows
+        },
+        -- sidebars = { 'qf', 'help' }, -- Set a darker background on sidebar-like windows.
+        day_brightness = 0.3, -- Adjusts the brightness of the colors of the Day style. Number between 0 and 1, default is 0.3
+        dim_inactive = false, -- dims inactive windows
+        lualine_bold = false, -- When true, section headers in the lualine theme will be bold
+        cache = false, -- When true, the colors are cached to a file, better performance but might cause issues
+        plugins = {
+          -- Add support for other plugins
+          lsp = true,
+          treesitter = true,
+          telescope = true,
+          nvimtree = true,
+          -- Add others as needed
+        },
+        on_colors = function(colors)
+          -- Use tmux color palette
+          colors.bg = '#2b2736' -- Main background (tmux bg)
+          colors.bg_dark = '#302c45' -- Darker background (tmux secondary bg)
+          colors.bg_float = '#302c45' -- Float background
+          colors.bg_popup = '#302c45' -- Popup background
+          colors.bg_sidebar = '#302c45' -- Sidebar background
+          colors.bg_statusline = '#2b2736' -- Statusline background
+          colors.fg = '#f8f8f2' -- Main text (tmux text)
+          colors.fg_dark = '#7f8490' -- Dimmed text (tmux grey)
+          colors.fg_gutter = '#7f8490' -- Gutter text
+          colors.border = '#5199ba' -- Border color (tmux active accent)
+          colors.blue = '#5199ba' -- Blue accent (tmux active)
+          colors.cyan = '#7bf2de' -- Cyan accent (tmux cyan)
+          colors.orange = '#f4c07b' -- Orange accent (tmux orange)
+          colors.yellow = '#f4c07b' -- Use orange for yellow too
+          colors.green = '#7bf2de' -- Use cyan for green
+        end,
+        on_highlights = function(highlights, colors)
+          -- Pane/Window borders to match tmux
+          highlights.WinSeparator = { fg = colors.border }
+          highlights.FloatBorder = { fg = colors.border }
 
-      -- You can configure highlights by doing something like:
-      vim.cmd.hi 'Comment gui=none'
+          -- Line numbers
+          highlights.LineNr = { fg = colors.fg_dark }
+          highlights.CursorLineNr = { fg = colors.blue, bold = true }
+
+          -- Status line highlights to match tmux aesthetic
+          highlights.MiniStatuslineDevinfo = { fg = colors.fg, bg = colors.bg_dark }
+          highlights.MiniStatuslineFilename = { fg = colors.fg, bg = colors.bg_statusline }
+          highlights.MiniStatuslineFileinfo = { fg = colors.fg_dark, bg = colors.bg_statusline }
+          highlights.MiniStatuslineInactive = { fg = colors.fg_dark, bg = colors.bg_statusline }
+
+          -- Mode-specific highlights matching tmux window status
+          highlights.MiniStatuslineModeNormal = { fg = colors.fg, bg = colors.blue, bold = true }
+          highlights.MiniStatuslineModeInsert = { fg = colors.fg, bg = colors.cyan, bold = true }
+          highlights.MiniStatuslineModeVisual = { fg = colors.bg, bg = colors.orange, bold = true }
+          highlights.MiniStatuslineModeReplace = { fg = colors.bg, bg = colors.orange, bold = true }
+          highlights.MiniStatuslineModeCommand = { fg = colors.fg, bg = colors.bg_dark, bold = true }
+          highlights.MiniStatuslineModeOther = { fg = colors.fg, bg = colors.bg_dark, bold = true }
+
+          -- Telescope to match tmux colors
+          highlights.TelescopeNormal = { fg = colors.fg, bg = colors.bg_dark }
+          highlights.TelescopeBorder = { fg = colors.border, bg = colors.bg_dark }
+          highlights.TelescopePromptNormal = { fg = colors.fg, bg = colors.bg_dark }
+          highlights.TelescopePromptBorder = { fg = colors.border, bg = colors.bg_dark }
+          highlights.TelescopeResultsNormal = { fg = colors.fg, bg = colors.bg }
+          highlights.TelescopeResultsBorder = { fg = colors.border, bg = colors.bg }
+          highlights.TelescopePreviewNormal = { fg = colors.fg, bg = colors.bg }
+          highlights.TelescopePreviewBorder = { fg = colors.border, bg = colors.bg }
+          highlights.TelescopeSelection = { fg = colors.fg, bg = colors.blue }
+
+          -- Git signs to match tmux
+          highlights.GitSignsAdd = { fg = colors.cyan }
+          highlights.GitSignsChange = { fg = colors.orange }
+          highlights.GitSignsDelete = { fg = colors.orange }
+
+          -- Which-key popup
+          highlights.WhichKey = { fg = colors.blue }
+          highlights.WhichKeyGroup = { fg = colors.cyan }
+          highlights.WhichKeySeparator = { fg = colors.fg_dark }
+          highlights.WhichKeyFloat = { bg = colors.bg_dark }
+          highlights.WhichKeyBorder = { fg = colors.border, bg = colors.bg_dark }
+
+          -- Completion menu
+          highlights.CmpItemMenu = { fg = colors.fg_dark }
+          highlights.CmpItemAbbrDeprecated = { fg = colors.fg_dark, strikethrough = true }
+          highlights.CmpItemAbbrMatch = { fg = colors.blue }
+          highlights.CmpItemAbbrMatchFuzzy = { fg = colors.blue }
+          highlights.CmpItemKindDefault = { fg = colors.cyan }
+
+          -- Cursor line to be subtle like tmux
+          highlights.CursorLine = { bg = colors.bg_dark }
+        end,
+      }
+      vim.cmd.colorscheme 'tokyonight-night'
     end,
   },
 
@@ -645,7 +772,38 @@ require('lazy').setup({
       --  and try some other statusline plugin
       local statusline = require 'mini.statusline'
       -- set use_icons to true if you have a Nerd Font
-      statusline.setup { use_icons = vim.g.have_nerd_font }
+      statusline.setup {
+        use_icons = vim.g.have_nerd_font,
+        -- Content configuration to match tmux layout
+        content = {
+          active = function()
+            local mode, mode_hl = statusline.section_mode { trunc_width = 120 }
+            local git = statusline.section_git { trunc_width = 40 }
+            local diff = statusline.section_diff { trunc_width = 75 }
+            local diagnostics = statusline.section_diagnostics { trunc_width = 75 }
+            local lsp = statusline.section_lsp { trunc_width = 75 }
+            local filename = statusline.section_filename { trunc_width = 140 }
+            local fileinfo = statusline.section_fileinfo { trunc_width = 120 }
+            local location = statusline.section_location { trunc_width = 75 }
+            local search = statusline.section_searchcount { trunc_width = 75 }
+
+            return statusline.combine_groups {
+              { hl = mode_hl, strings = { mode } },
+              { hl = 'MiniStatuslineDevinfo', strings = { git, diff, diagnostics, lsp } },
+              '%<', -- Mark general truncate point
+              { hl = 'MiniStatuslineFilename', strings = { filename } },
+              '%=', -- End left alignment
+              { hl = 'MiniStatuslineFileinfo', strings = { fileinfo, location, search } },
+            }
+          end,
+          inactive = function()
+            local filename = statusline.section_filename { trunc_width = 140 }
+            return statusline.combine_groups {
+              { hl = 'MiniStatuslineInactive', strings = { filename } },
+            }
+          end,
+        },
+      }
 
       -- You can configure sections in the statusline by overriding their
       -- default behavior. For example, here we set the section for
