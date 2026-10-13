@@ -3,6 +3,13 @@
 --   molten-nvim            runs code against a real Jupyter kernel, output shown under the cell
 --   NotebookNavigator.nvim `# %%` cell-aware motions and run-cell-under-cursor
 
+local is_mac = vim.fn.has 'mac' == 1
+-- On Linux, bootstrap-ubuntu.sh creates ~/.virtualenvs/neovim with pynvim +
+-- jupyter_client and registers it as the `python3` kernel.
+local host_python = is_mac and '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3'
+  or vim.fn.expand '~/.virtualenvs/neovim/bin/python3'
+local kernel = is_mac and 'python311' or 'python3'
+
 return {
   {
     'GCBallesteros/jupytext.nvim',
@@ -21,7 +28,7 @@ return {
     build = ':UpdateRemotePlugins',
     init = function()
       -- pynvim + jupyter_client live in this interpreter
-      vim.g.python3_host_prog = '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3'
+      vim.g.python3_host_prog = host_python
 
       -- Alacritty implements no inline image protocol, so plots can't render in
       -- the buffer; :MoltenImagePopup opens them in an external viewer instead.
@@ -34,7 +41,7 @@ return {
       vim.g.molten_virt_lines_off_by_1 = true
     end,
     keys = {
-      { '<leader>ji', '<Cmd>MoltenInit python311<CR>', desc = 'Molten [i]nit kernel' },
+      { '<leader>ji', '<Cmd>MoltenInit ' .. kernel .. '<CR>', desc = 'Molten [i]nit kernel' },
       { '<leader>jl', '<Cmd>MoltenEvaluateLine<CR>', desc = 'Molten evaluate [l]ine' },
       { '<leader>je', '<Cmd>MoltenEvaluateOperator<CR>', desc = 'Molten [e]valuate operator' },
       { '<leader>jv', ':<C-u>MoltenEvaluateVisual<CR>gv', mode = 'v', desc = 'Molten evaluate [v]isual' },
