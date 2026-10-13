@@ -90,25 +90,21 @@ vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
 vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
 vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
--- Keybinds to make split navigation easier.
---  Use CTRL+<hjkl> to switch between windows
---  See `:help wincmd` for a list of all window commands
-vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
-vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
-vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+-- Split navigation (CTRL+<hjkl>) is handled by vim-tmux-navigator,
+-- see lua/ddoukas/plugins/tmux-navigator.lua -- it crosses seamlessly
+-- into tmux panes too, not just Neovim splits.
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
---  See `:help vim.highlight.on_yank()`
+--  See `:help vim.hl.on_yank()`
 vim.api.nvim_create_autocmd('TextYankPost', {
   desc = 'Highlight when yanking (copying) text',
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
   callback = function()
-    vim.highlight.on_yank()
+    vim.hl.on_yank()
   end,
 })
 
@@ -195,13 +191,18 @@ require('lazy').setup({
       },
       -- Document existing key chains
       spec = {
+        { '<leader>b', group = '[B]uffer' },
         { '<leader>c', group = '[C]ode', mode = { 'n', 'x' } },
+        { '<leader>cv', group = '[V]sCoq' },
+        { '<leader>cvq', group = '[Q]uery' },
         { '<leader>d', group = '[D]ocument' },
+        { '<leader>j', group = '[J]upyter' },
         { '<leader>r', group = '[R]ename' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>w', group = '[W]orkspace' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
+        { '<leader>g', group = '[G]it' },
       },
     },
   },
@@ -209,7 +210,8 @@ require('lazy').setup({
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
     event = 'VimEnter',
-    branch = '0.1.x',
+    -- 0.1.x relies on the old nvim-treesitter API (ft_to_lang) and breaks previews
+    branch = 'master',
     dependencies = {
       'nvim-lua/plenary.nvim',
       {
@@ -248,6 +250,9 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
       vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+      vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
+      vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
         -- You can pass additional configuration to Telescope to change the theme, layout, etc.
@@ -336,7 +341,7 @@ require('lazy').setup({
           --
           -- When you move your cursor, the highlights will be cleared (the second autocommand).
           local client = vim.lsp.get_client_by_id(event.data.client_id)
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
             local highlight_augroup = vim.api.nvim_create_augroup('kickstart-lsp-highlight', { clear = false })
             vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
               buffer = event.buf,
@@ -360,7 +365,7 @@ require('lazy').setup({
           -- code, if the language server you are using supports them
           --
           -- This may be unwanted, since they displace some of your code
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
             map('<leader>th', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
@@ -432,7 +437,15 @@ require('lazy').setup({
             },
           },
         },
-        jdtls = {},
+        jdtls = {
+          -- Same as lspconfig's defaults, plus Eclipse project files so
+          -- projects created in Eclipse get a proper workspace root.
+          root_markers = {
+            { 'mvnw', 'gradlew', 'settings.gradle', 'settings.gradle.kts' },
+            { '.project', '.classpath', 'pom.xml', 'build.gradle', 'build.gradle.kts', 'build.xml' },
+            '.git',
+          },
+        },
       }
       local mason_tools = {
         -- LSP servers (package IDs)
@@ -470,16 +483,14 @@ require('lazy').setup({
         auto_update = false,
         run_on_start = true,
       }
+      -- Apply cmp capabilities to every server, then per-server overrides.
+      -- mason-lspconfig (v2) calls vim.lsp.enable() on installed servers automatically.
+      vim.lsp.config('*', { capabilities = capabilities })
+      for server_name, server in pairs(servers) do
+        vim.lsp.config(server_name, server)
+      end
       require('mason-lspconfig').setup {
         ensure_installed = ensure_servers,
-        automatic_installation = true,
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
       }
     end,
   },
@@ -559,6 +570,9 @@ require('lazy').setup({
       --  into multiple repos for maintenance purposes.
       'hrsh7th/cmp-nvim-lsp',
       'hrsh7th/cmp-path',
+      'hrsh7th/cmp-buffer',
+      -- Shows the function signature (with the current parameter highlighted) while typing arguments
+      'hrsh7th/cmp-nvim-lsp-signature-help',
     },
     config = function()
       -- See `:help cmp`
@@ -633,10 +647,22 @@ require('lazy').setup({
             group_index = 0,
           },
           { name = 'nvim_lsp' },
+          { name = 'nvim_lsp_signature_help' },
           { name = 'luasnip' },
           { name = 'path' },
         },
       }
+
+      -- vscoqtop's completion is goal-aware and only returns candidates inside
+      -- an open proof; add buffer-word completion as a fallback so completion
+      -- still works everywhere else in .v files (top-level defs, Inductive, etc).
+      cmp.setup.filetype('coq', {
+        sources = {
+          { name = 'nvim_lsp' },
+          { name = 'buffer' },
+          { name = 'path' },
+        },
+      })
     end,
   },
 
@@ -767,6 +793,17 @@ require('lazy').setup({
       -- - sd'   - [S]urround [D]elete [']quotes
       require('mini.surround').setup()
 
+      -- Show open buffers as tabs along the top, like editor tabs in Eclipse
+      require('mini.tabline').setup { show_icons = vim.g.have_nerd_font }
+      vim.keymap.set('n', '<S-h>', '<cmd>bprevious<CR>', { desc = 'Previous tab (buffer)' })
+      vim.keymap.set('n', '<S-l>', '<cmd>bnext<CR>', { desc = 'Next tab (buffer)' })
+
+      -- Close a buffer without closing its window/split
+      require('mini.bufremove').setup()
+      vim.keymap.set('n', '<leader>bd', function()
+        require('mini.bufremove').delete()
+      end, { desc = '[B]uffer [D]elete (close tab)' })
+
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
       --  and try some other statusline plugin
@@ -820,22 +857,48 @@ require('lazy').setup({
 
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    -- The old 'master' branch is archived and breaks on Neovim 0.12; 'main' is the rewrite.
+    -- Building parsers needs the tree-sitter CLI (`brew install tree-sitter-cli`).
+    branch = 'main',
+    lazy = false,
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
-    opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-      -- Autoinstall languages that are not installed
-      auto_install = true,
-      highlight = {
-        enable = true,
-        -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
-        --  If you are experiencing weird indenting issues, add the language to
-        --  the list of additional_vim_regex_highlighting and disabled languages for indent.
-        additional_vim_regex_highlighting = { 'ruby' },
-      },
-      indent = { enable = true, disable = { 'ruby' } },
-    },
+    config = function()
+      local ts = require 'nvim-treesitter'
+      ts.install { 'bash', 'c', 'diff', 'html', 'java', 'latex', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
+
+      local no_highlight = { latex = true } -- VimTeX handles LaTeX highlighting
+      -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
+      local no_indent = { ruby = true }
+
+      local function start(buf, lang)
+        if not vim.api.nvim_buf_is_valid(buf) or not vim.treesitter.language.add(lang) then
+          return
+        end
+        vim.treesitter.start(buf, lang)
+        if not no_indent[lang] then
+          vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        end
+      end
+
+      vim.api.nvim_create_autocmd('FileType', {
+        group = vim.api.nvim_create_augroup('treesitter-start', { clear = true }),
+        callback = function(args)
+          local lang = vim.treesitter.language.get_lang(args.match)
+          if not lang or no_highlight[lang] then
+            return
+          end
+          if vim.list_contains(ts.get_installed(), lang) then
+            start(args.buf, lang)
+          elseif vim.list_contains(ts.get_available(), lang) then
+            -- Autoinstall languages that are not installed
+            ts.install(lang):await(function()
+              start(args.buf, lang)
+            end)
+          end
+        end,
+      })
+    end,
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
     --
@@ -857,7 +920,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.neo-tree',
   require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
