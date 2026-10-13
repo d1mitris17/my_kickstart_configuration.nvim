@@ -3,12 +3,14 @@
 --   molten-nvim            runs code against a real Jupyter kernel, output shown under the cell
 --   NotebookNavigator.nvim `# %%` cell-aware motions and run-cell-under-cursor
 
-local is_mac = vim.fn.has 'mac' == 1
--- On Linux, bootstrap-ubuntu.sh creates ~/.virtualenvs/neovim with pynvim +
--- jupyter_client and registers it as the `python3` kernel.
-local host_python = is_mac and '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3'
-  or vim.fn.expand '~/.virtualenvs/neovim/bin/python3'
-local kernel = is_mac and 'python311' or 'python3'
+-- Same on macOS and Linux: ~/.virtualenvs/neovim has pynvim + jupyter_client
+-- and is registered as the `python3` kernel (bootstrap-ubuntu.sh does this on
+-- Linux; on the Mac:
+--   python3 -m venv ~/.virtualenvs/neovim
+--   ~/.virtualenvs/neovim/bin/pip install pynvim jupyter_client ipykernel nbformat pyperclip
+--   ~/.virtualenvs/neovim/bin/python3 -m ipykernel install --user --name python3)
+local host_python = vim.fn.expand '~/.virtualenvs/neovim/bin/python3'
+local kernel = 'python3'
 
 return {
   {
